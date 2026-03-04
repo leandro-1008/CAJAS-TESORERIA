@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cajas Interactivas</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9f9f9; }
+    h1 { text-align: center; }
+    .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 15px; margin: 20px; }
+    .box {
+      width: 80px;
+      height: 80px;
+      background-color: #ffffff; /* cuadrado blanco */
+      border: 2px solid #ccc;    /* borde gris para simular caja */
+      border-radius: 4px;        /* esquinas ligeramente redondeadas */
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2); /* sombra para efecto 3D */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button {
+      background-color: #4CAF50; /* verde elegante */
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 25px; /* forma de píldora */
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    button:hover {
+      background-color: #45a049; /* tono más oscuro al pasar el mouse */
+      transform: scale(1.05); /* efecto de agrandamiento */
+    }
+
+
+    .modal {
+      display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,0.6); justify-content:center; align-items:center;
+    }
+    .modal-content {
+      background:#fff; padding:20px; border-radius:8px; width:500px; text-align:left;
+      max-height: 70vh; overflow-y: auto;
+    }
+    .close { float:right; cursor:pointer; font-size:18px; }
+    table {
+      width: 100%; border-collapse: collapse; margin-top: 10px;
+    }
+    th, td {
+      border-bottom: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .btn {
+      padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;
+      font-size: 12px;
+    }
+    .btn-caja { background-color: green; color: white; }
+    .btn-afuera { background-color: red; color: white; }
+    .estado { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Cajas del 1 al 60</h1>
+
+  <!-- Buscador -->
+  <div style="text-align:center; margin: 15px;">
+    <input type="text" id="search" placeholder="Buscar por código o nombre" style="padding:8px; width:250px;">
+    <button onclick="buscar()">Buscar</button>
+  </div>
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <span class="close" id="close">&times;</span>
+      <h2 id="modal-title"></h2>
+
+      <!-- Buscador dentro del modal -->
+      <div style="margin-bottom:10px;">
+        <input type="text" id="modal-search" placeholder="Buscar en esta caja..." style="padding:6px; width:70%;">
+        <button class="btn" onclick="buscarEnModal()">Buscar</button>
+      </div>
+
+      <div id="modal-info"></div>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <span class="close" id="close">&times;</span>
+      <h2 id="modal-title"></h2>
+      <div id="modal-info"></div>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = "AIzaSyAqZ-qm4CLUPiclp4gKlSb4jel_Ts3gE98"; // tu clave de Google Cloud
+    const sheetId = "1Bw2Toy8RRx41NJ8yEZbY23fq-9w8LOqwXU7B2fW1AuQ";
+    const range = "Hoja 1!B:H"; // ahora incluimos hasta la columna H
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
+
+    const grid = document.getElementById("grid");
+    const modal = document.getElementById("modal");
+    const modalTitle = document.getElementById("modal-title");
+    const modalInfo = document.getElementById("modal-info");
+    const closeBtn = document.getElementById("close");
+
+    const infoPorCaja = {};
+
+    // Crear 60 cajas
+    for (let i = 1; i <= 60; i++) {
+      const div = document.createElement("div");
+      div.className = "box";
+      div.textContent = i;
+      div.dataset.index = i;
+      grid.appendChild(div);
+    }
+
+    // Cargar datos desde Google Sheets
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        const values = data.values;
+
+        values.forEach(row => {
+          const codigo = row[0]; // Columna B
+          const nombre = row[1]; // Columna C
+          const cajaNum = row[3]; // Columna E
+          const estado = row[7] || "En caja"; // Columna H
+          if (cajaNum && nombre) {
+            if (!infoPorCaja[cajaNum]) {
+              infoPorCaja[cajaNum] = [];
+            }
+            infoPorCaja[cajaNum].push({codigo, nombre, estado});
+          }
+        });
+
+        document.querySelectorAll(".box").forEach(box => {
+          box.addEventListener("click", () => {
+            const num = box.dataset.index;
+            mostrarCaja(num);
+          });
+        });
+
+        // Función para mostrar modal de caja
+        // Función para mostrar modal de caja
+        window.mostrarCaja = (num) => {
+          const registros = infoPorCaja[num] || [];
+          modalTitle.textContent = `Caja ${num}`;
+          modal.dataset.caja = num; // guardamos el número de caja en el modal
+
+          renderTabla(num, registros);
+          modal.style.display = "flex";
+        };
+
+        // Función para renderizar la tabla de registros
+        function renderTabla(num, registros) {
+          if (registros.length > 0) {
+            modalInfo.innerHTML = `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${registros.map((r, idx) => `
+                    <tr>
+                      <td>${r.codigo}</td>
+                      <td>${r.nombre}</td>
+                      <td><span class="estado" id="estado-${num}-${idx}" style="color:${r.estado==='En caja'?'green':'red'};">${r.estado}</span></td>
+                      <td>
+                        <button class="btn btn-caja" onclick="cambiarEstado(${num}, ${idx}, 'En caja')">En caja</button>
+                        <button class="btn btn-afuera" onclick="cambiarEstado(${num}, ${idx}, 'Afuera')">Afuera</button>
+                      </td>
+                    </tr>`).join("")}
+                </tbody>
+              </table>`;
+          } else {
+            modalInfo.innerHTML = "<p>Sin registros</p>";
+          }
+        }
+
+        // Función para buscar dentro del modal
+        window.buscarEnModal = () => {
+          const query = document.getElementById("modal-search").value.toLowerCase();
+          const cajaNum = modal.dataset.caja;
+          const registros = infoPorCaja[cajaNum] || [];
+
+          const filtrados = registros.filter(r =>
+            r.codigo.toLowerCase().includes(query) || r.nombre.toLowerCase().includes(query)
+          );
+
+          renderTabla(cajaNum, filtrados);
+        };
+
+
+        // Función para cambiar estado (solo visual, aún no guarda en Sheets)
+        window.cambiarEstado = (cajaNum, idx, nuevoEstado) => {
+          const registro = infoPorCaja[cajaNum][idx];
+          registro.estado = nuevoEstado;
+          const estadoSpan = document.getElementById(`estado-${cajaNum}-${idx}`);
+          estadoSpan.textContent = nuevoEstado;
+          estadoSpan.style.color = (nuevoEstado === "En caja") ? "green" : "red";
+          alert(`El documento ${registro.codigo} - ${registro.nombre} ahora está ${nuevoEstado.toUpperCase()}`);
+        };
+
+        // Función de búsqueda (resalta todas las coincidencias sin abrir modal)
+        window.buscar = () => {
+          const query = document.getElementById("search").value.toLowerCase();
+          let coincidencias = [];
+
+          // Resetear colores
+          document.querySelectorAll(".box").forEach(b => b.style.backgroundColor = "");
+
+          for (const cajaNum in infoPorCaja) {
+            for (const registro of infoPorCaja[cajaNum]) {
+              if (registro.codigo.toLowerCase().includes(query) || registro.nombre.toLowerCase().includes(query)) {
+                const caja = document.querySelector(`.box[data-index='${cajaNum}']`);
+                caja.style.backgroundColor = "lightgreen"; // pintar verde
+                coincidencias.push(cajaNum);
+              }
+            }
+          }
+
+          if (coincidencias.length === 0) {
+            alert("No se encontró ningún documento con ese criterio.");
+          }
+        };
+      });
+
+    closeBtn.onclick = () => modal.style.display = "none";
+    window.onclick = e => { if (e.target == modal) modal.style.display = "none"; };
+  </script>
+</body>
+</html>
